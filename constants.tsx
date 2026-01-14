@@ -11,7 +11,7 @@ export const COLORS = {
   danger: "#EF4444"
 };
 
-export const STRIPE_PUBLISHABLE_KEY = 'pk_live_51SG9ds8EFCosEt2S4fnX7iyscGLRM8Txug8xo3tgeXJ1FGTXflpZVsCCgUlr8TEjnslXxgtq2Q46so1L8Alvr23B00xaHskFAt';
+export const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
 // Service categories with detailed descriptions for invoices
 export const SERVICE_CATEGORIES = [
   { label: 'Content Writing', description: 'Professional content creation services including blog posts, articles, website copy, marketing materials, and SEO-optimized content tailored to engage your target audience and drive conversions.' },
