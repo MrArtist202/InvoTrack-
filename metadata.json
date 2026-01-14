@@ -1,0 +1,7 @@
+{
+  "name": "InvoTrack",
+  "description": "A high-end invoice management dashboard for teams with admin controls, member activity tracking, real-time chat, and professional invoice generation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
