@@ -18,7 +18,9 @@ export const STRIPE_CONFIG = {
   isConfigured: true,
 
   // Your backend API URL (for creating checkout sessions)
-  apiUrl: 'http://localhost:5000',
+  // Your backend API URL (for creating checkout sessions)
+  // In production (Vercel), we can use the relative path or specific env var
+  apiUrl: import.meta.env.VITE_API_URL || '',
 };
 
 // ============================================

@@ -1,9 +1,15 @@
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const pool = require('./db');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import pool from './db.js';
+import dotenv from 'dotenv';
+import Stripe from 'stripe';
+import { fileURLToPath } from 'url';
+
+dotenv.config();
+console.log('Environment loaded');
+console.log('Stripe Key exists:', !!process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 app.use(cors());
@@ -427,72 +433,9 @@ app.put('/api/notifications/read-all', authenticate, async (req, res) => {
 });
 
 
-// ==================== NOTIFICATIONS ROUTES ====================
-
-// Get notifications
-app.get('/api/notifications', authenticate, async (req, res) => {
-    try {
-        const result = await pool.query(
-            'SELECT * FROM notifications WHERE admin_id = $1 ORDER BY created_at DESC LIMIT 50',
-            [req.user.id]
-        );
-        res.json(result.rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Create notification (internal use mostly, but exposed for member actions)
-app.post('/api/notifications', authenticate, async (req, res) => {
-    try {
-        const { adminId, type, title, message, memberId, invoiceId, amount } = req.body;
-
-        // Validate that the target is an admin
-        const adminCheck = await pool.query('SELECT role FROM users WHERE id = $1', [adminId]);
-        if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'ADMIN') {
-            return res.status(400).json({ error: 'Invalid admin ID' });
-        }
-
-        const result = await pool.query(
-            `INSERT INTO notifications (admin_id, type, title, message, member_id, invoice_id, amount) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-            [adminId, type, title, message, memberId, invoiceId, amount]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Mark as read
-app.put('/api/notifications/:id/read', authenticate, async (req, res) => {
-    try {
-        await pool.query(
-            'UPDATE notifications SET is_read = true WHERE id = $1 AND admin_id = $2',
-            [req.params.id, req.user.id]
-        );
-        res.json({ message: 'Marked as read' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Mark all as read
-app.put('/api/notifications/read-all', authenticate, async (req, res) => {
-    try {
-        await pool.query(
-            'UPDATE notifications SET is_read = true WHERE admin_id = $1',
-            [req.user.id]
-        );
-        res.json({ message: 'Marked all as read' });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 // ==================== STRIPE ROUTES ====================
 
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Create checkout session
 app.post('/api/create-checkout-session', async (req, res) => {
@@ -592,10 +535,10 @@ app.get('/api/health', (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 // Only start server if run directly (local dev), not when imported by Vercel
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
     app.listen(PORT, () => {
         console.log(`✓ Server running on port ${PORT}`);
     });
 }
 
-module.exports = app;
+export default app;
