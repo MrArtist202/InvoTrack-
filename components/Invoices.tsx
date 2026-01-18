@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { User, Invoice, InvoiceStatus, Profile } from '../types';
 import { invoicesAPI, profilesAPI } from '../api';
 import { STRIPE_CONFIG, generatePaymentLink, formatCurrency } from '../config';
-import { Plus, Search, Mail, Download, Check, ExternalLink, ReceiptText, Copy, Trash2, AlertCircle, Filter, ChevronDown, X } from 'lucide-react';
+import { Plus, Search, Mail, Download, Check, ExternalLink, ReceiptText, Copy, Trash2, AlertCircle, Filter, ChevronDown, X, Loader2 } from 'lucide-react';
 import InvoiceForm from './InvoiceForm';
 import InvoiceTemplate from './InvoiceTemplate';
 import { notifyInvoiceCreated } from '../notificationStore';
@@ -15,6 +15,7 @@ interface InvoicesProps {
 
 const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -45,6 +46,7 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
 
   const loadInvoices = async () => {
     try {
+      setLoading(true);
       const all = await invoicesAPI.getAll();
       console.log('Raw invoices from API:', all);
       let filtered = all;
@@ -63,6 +65,8 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
       setInvoices(sorted);
     } catch (error) {
       console.error('Failed to load invoices:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -129,7 +133,8 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
 
   const deleteInvoice = async (id: string) => {
     const invoice = invoices.find(i => i.id === id);
-    if (invoice && invoice.status === 'paid') {
+    // Allow Admin to delete any invoice. Members can only delete pending.
+    if (user.role !== 'ADMIN' && invoice && invoice.status === 'paid') {
       alert('Cannot delete a paid invoice');
       return;
     }
@@ -438,88 +443,91 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-semibold border-b border-slate-100">
-                  <tr>
-                    <th className="px-6 py-4">Reference</th>
-                    <th className="px-6 py-4">From</th>
-                    <th className="px-6 py-4">To</th>
-                    <th className="px-6 py-4">Subject</th>
-                    <th className="px-6 py-4 text-right">Amount</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredInvoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50 group">
-                      <td className="px-6 py-4">
-                        <p className="font-mono font-semibold text-indigo-600 text-sm">{inv.referenceId}</p>
-                        <p className="text-xs text-slate-400">{new Date(inv.created_at).toLocaleDateString()}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-slate-700">{inv.fromName}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="font-medium text-slate-800">{inv.toName}</p>
-                        <p className="text-xs text-slate-400">{inv.toEmail}</p>
-                      </td>
-                      <td className="px-6 py-4 text-slate-600 max-w-[200px] truncate">{inv.subject}</td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(inv.amount, inv.currency)}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${inv.status === 'paid'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-amber-100 text-amber-700'
-                          }`}>
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => setSelectedInvoice(inv)}
-                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                            title="View Invoice"
-                          >
-                            <ExternalLink size={16} />
-                          </button>
-                          <button
-                            onClick={() => copyPaymentLink(inv.stripeLink)}
-                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                            title="Copy Payment Link"
-                          >
-                            <Copy size={16} />
-                          </button>
-                          <button
-                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                            title="Send Email"
-                          >
-                            <Mail size={16} />
-                          </button>
-                          {/* Delete button - only for pending invoices */}
-                          {inv.status === 'pending' && (
-                            <button
-                              onClick={() => setDeleteConfirm(inv.id)}
-                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                              title="Delete Invoice"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {filteredInvoices.length === 0 && (
-                <div className="p-16 text-center">
-                  <ReceiptText className="mx-auto text-slate-200 mb-4" size={48} />
-                  <p className="text-slate-500 font-medium">No invoices found</p>
-                  <p className="text-slate-400 text-sm mt-1">
-                    {user.role === 'MEMBER' ? 'Create your first invoice to get started' : 'No invoices from your team yet'}
-                  </p>
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <Loader2 size={40} className="animate-spin mb-4 text-indigo-500" />
+                  <p className="font-medium">Loading invoices...</p>
                 </div>
+              ) : (
+                <>
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500 font-semibold border-b border-slate-100">
+                      <tr>
+                        <th className="px-6 py-4">Reference</th>
+                        <th className="px-6 py-4">From</th>
+                        <th className="px-6 py-4">To</th>
+                        <th className="px-6 py-4">Subject</th>
+                        <th className="px-6 py-4 text-right">Amount</th>
+                        <th className="px-6 py-4">Status</th>
+                        <th className="px-6 py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredInvoices.map((inv) => (
+                        <tr key={inv.id} className="hover:bg-slate-50 group">
+                          <td className="px-6 py-4">
+                            <p className="font-mono font-semibold text-indigo-600 text-sm">{inv.referenceId}</p>
+                            <p className="text-xs text-slate-400">{new Date(inv.created_at).toLocaleDateString()}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-slate-700">{inv.fromName}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-slate-800">{inv.toName}</p>
+                            <p className="text-xs text-slate-400">{inv.toEmail}</p>
+                          </td>
+                          <td className="px-6 py-4 text-slate-600 max-w-[200px] truncate">{inv.subject}</td>
+                          <td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(inv.amount, inv.currency)}</td>
+                          <td className="px-6 py-4">
+                            <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${inv.status === 'paid'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-700'
+                              }`}>
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => setSelectedInvoice(inv)}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                title="View Invoice"
+                              >
+                                <ExternalLink size={16} />
+                              </button>
+                              <button
+                                onClick={() => copyPaymentLink(inv.stripeLink)}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                title="Copy Payment Link"
+                              >
+                                <Copy size={16} />
+                              </button>
+                              {/* Delete button - always for Admin, or pending for Member */}
+                              {(user.role === 'ADMIN' || inv.status === 'pending') && (
+                                <button
+                                  onClick={() => setDeleteConfirm(inv.id)}
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Delete Invoice"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {filteredInvoices.length === 0 && (
+                    <div className="p-16 text-center">
+                      <ReceiptText className="mx-auto text-slate-200 mb-4" size={48} />
+                      <p className="text-slate-500 font-medium">No invoices found</p>
+                      <p className="text-slate-400 text-sm mt-1">
+                        {user.role === 'MEMBER' ? 'Create your first invoice to get started' : 'No invoices from your team yet'}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -536,7 +544,7 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
               ← Back to List
             </button>
             <div className="flex gap-2">
-              {selectedInvoice.status === 'pending' && (
+              {(user.role === 'ADMIN' || selectedInvoice.status === 'pending') && (
                 <button
                   onClick={() => setDeleteConfirm(selectedInvoice.id)}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition-all"

@@ -28,6 +28,8 @@ const Members: React.FC<MembersProps> = ({ user, onViewInvoices }) => {
     password: 'password123',
   });
 
+  const [editingMember, setEditingMember] = useState<User | null>(null);
+
   useEffect(() => {
     loadMembers();
   }, [user]);
@@ -75,6 +77,36 @@ const Members: React.FC<MembersProps> = ({ user, onViewInvoices }) => {
     }
   };
 
+  const handleUpdateMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMember) return;
+
+    try {
+      await membersAPI.update(editingMember.id, {
+        name: editingMember.name,
+        email: editingMember.email,
+        phone: editingMember.phone,
+        password: editingMember.password, // Optional, only if changed
+      });
+
+      setEditingMember(null);
+      loadMembers();
+    } catch (error: any) {
+      alert(error.message || 'Failed to update member');
+    }
+  };
+
+  const handleDeleteMember = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this member? This cannot be undone.')) return;
+    try {
+      await membersAPI.delete(id);
+      loadMembers();
+    } catch (error: any) {
+      alert(error.message || 'Failed to delete member');
+    }
+  };
+
+
   const filteredMembers = members.filter(m =>
     m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -108,11 +140,19 @@ const Members: React.FC<MembersProps> = ({ user, onViewInvoices }) => {
           const stats = memberStats[member.id] || { invoiceCount: 0, totalAmount: 0, paidAmount: 0, pendingAmount: 0 };
 
           return (
-            <div key={member.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-all">
+            <div key={member.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-all relative group">
+              <button
+                onClick={() => handleDeleteMember(member.id)}
+                className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"
+                title="Remove Member"
+              >
+                <X size={18} />
+              </button>
+
               {/* Header */}
-              <div className="flex items-start gap-4 mb-4">
+              <div className="flex items-start gap-4 mb-4 pr-6">
                 <img
-                  src={member.avatar}
+                  src={member.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(member.name)}&background=random`}
                   alt={member.name}
                   className="w-12 h-12 rounded-xl object-cover border border-slate-100"
                 />
@@ -163,9 +203,11 @@ const Members: React.FC<MembersProps> = ({ user, onViewInvoices }) => {
                   <FileText size={14} />
                   Invoices
                 </button>
-                <button className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-50 text-indigo-600 text-sm font-semibold hover:bg-indigo-100 transition-all">
-                  <Mail size={14} />
-                  Message
+                <button
+                  onClick={() => setEditingMember(member)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-50 text-indigo-600 text-sm font-semibold hover:bg-indigo-100 transition-all"
+                >
+                  Edit
                 </button>
               </div>
             </div>
@@ -263,6 +305,91 @@ const Members: React.FC<MembersProps> = ({ user, onViewInvoices }) => {
                   className="flex-1 bg-slate-900 text-white font-semibold py-3 rounded-xl hover:bg-slate-800 transition-all text-sm shadow-lg shadow-slate-900/20"
                 >
                   Create Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Member Modal */}
+      {editingMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <h2 className="text-xl font-bold font-heading text-slate-900">Edit Member</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Update member details.</p>
+              </div>
+              <button
+                onClick={() => setEditingMember(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateMember} className="p-6 space-y-5">
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Full Name</label>
+                  <input
+                    required
+                    type="text"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
+                    value={editingMember.name}
+                    onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Email Address</label>
+                  <input
+                    required
+                    type="email"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
+                    value={editingMember.email}
+                    onChange={(e) => setEditingMember({ ...editingMember, email: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Phone</label>
+                  <input
+                    required
+                    type="tel"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
+                    value={editingMember.phone}
+                    onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">New Password (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Leave blank to keep same"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm font-medium"
+                    value={editingMember.password || ''}
+                    onChange={(e) => setEditingMember({ ...editingMember, password: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingMember(null)}
+                  className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold hover:bg-slate-50 transition-all text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-slate-900 text-white font-semibold py-3 rounded-xl hover:bg-slate-800 transition-all text-sm shadow-lg shadow-slate-900/20"
+                >
+                  Update Member
                 </button>
               </div>
             </form>

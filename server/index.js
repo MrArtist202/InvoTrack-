@@ -165,6 +165,35 @@ app.post('/api/members', authenticate, async (req, res) => {
     }
 });
 
+// Update member
+app.put('/api/members/:id', authenticate, async (req, res) => {
+    try {
+        if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Admin only' });
+
+        const { name, email, phone, password } = req.body;
+        let query, params;
+
+        if (password) {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            query = `UPDATE users SET name = $1, email = $2, phone = $3, password_hash = $4, updated_at = NOW() 
+                     WHERE id = $5 AND admin_id = $6 RETURNING id, name, email, phone, role, avatar, created_at`;
+            params = [name, email, phone, hashedPassword, req.params.id, req.user.id];
+        } else {
+            query = `UPDATE users SET name = $1, email = $2, phone = $3, updated_at = NOW() 
+                     WHERE id = $4 AND admin_id = $5 RETURNING id, name, email, phone, role, avatar, created_at`;
+            params = [name, email, phone, req.params.id, req.user.id];
+        }
+
+        const result = await pool.query(query, params);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Member not found' });
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        if (err.code === '23505') return res.status(400).json({ error: 'Email already exists' });
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Delete member
 app.delete('/api/members/:id', authenticate, async (req, res) => {
     try {
@@ -341,7 +370,24 @@ app.put('/api/invoices/:id/status', authenticate, async (req, res) => {
 // Delete invoice
 app.delete('/api/invoices/:id', authenticate, async (req, res) => {
     try {
-        await pool.query('DELETE FROM invoices WHERE id = $1 AND member_id = $2', [req.params.id, req.user.id]);
+        let result;
+        if (req.user.role === 'ADMIN') {
+            // Admin can delete ANY invoice if it belongs to them or their team members
+            // Sub-query checks if the invoice owner (member_id) is part of the admin's team (users table admin_id link) OR is the admin themselves
+            result = await pool.query(
+                `DELETE FROM invoices 
+                 WHERE id = $1 
+                 AND (member_id = $2 OR member_id IN (SELECT id FROM users WHERE admin_id = $2))`,
+                [req.params.id, req.user.id]
+            );
+        } else {
+            // Member can only delete their own
+            result = await pool.query('DELETE FROM invoices WHERE id = $1 AND member_id = $2', [req.params.id, req.user.id]);
+        }
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Invoice not found or permission denied' });
+        }
         res.json({ message: 'Invoice deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });

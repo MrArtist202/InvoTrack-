@@ -111,6 +111,14 @@ export const membersAPI = {
     delete: async (id: string) => {
         return request(`/members/${id}`, { method: 'DELETE' });
     },
+
+    update: async (id: string, data: { name: string; email: string; phone: string; password?: string }) => {
+        const result = await request(`/members/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+        return transformUser(result);
+    },
 };
 
 // ==================== PROFILES API ====================
