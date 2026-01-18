@@ -2,7 +2,7 @@
 import React from 'react';
 import { Invoice, Profile } from '../types';
 import { APP_NAME } from '../constants';
-import { COMPANY_INFO } from '../config';
+import { COMPANY_INFO, formatCurrency } from '../config';
 import { Mail, Phone, Globe, CreditCard, ShieldCheck, ExternalLink, Copy, MapPin } from 'lucide-react';
 import QRCode from 'react-qr-code';
 
@@ -119,7 +119,7 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, profile, onP
                 </td>
                 <td className="py-6 text-right align-top">
                   <span className="font-bold text-2xl text-slate-900">
-                    ${invoice.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {formatCurrency(invoice.amount, invoice.currency)}
                   </span>
                 </td>
               </tr>
@@ -153,16 +153,16 @@ const InvoiceTemplate: React.FC<InvoiceTemplateProps> = ({ invoice, profile, onP
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Subtotal</span>
-                <span className="text-slate-900 font-medium">${invoice.amount.toFixed(2)}</span>
+                <span className="text-slate-900 font-medium">{formatCurrency(invoice.amount, invoice.currency)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500">Tax (0%)</span>
-                <span className="text-slate-400">$0.00</span>
+                <span className="text-slate-400">{formatCurrency(0, invoice.currency)}</span>
               </div>
               <div className="pt-3 border-t border-slate-200">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-slate-900">Total Due</span>
-                  <span className="font-bold text-2xl text-slate-900">${invoice.amount.toLocaleString()}</span>
+                  <span className="font-bold text-2xl text-slate-900">{formatCurrency(invoice.amount, invoice.currency)}</span>
                 </div>
               </div>
             </div>

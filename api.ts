@@ -200,6 +200,7 @@ export const invoicesAPI = {
         subject: string;
         description?: string;
         amount: number;
+        currency?: string;
         stripe_link?: string;
         qr_code_url?: string;
     }) => {

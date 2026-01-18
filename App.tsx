@@ -10,6 +10,7 @@ import PaymentSuccess from './components/PaymentSuccess';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   // Persistence check on mount
   useEffect(() => {
@@ -20,6 +21,8 @@ const App: React.FC = () => {
       } catch (error) {
         clearToken();
         setCurrentUser(null);
+      } finally {
+        setIsCheckingAuth(false);
       }
     };
     checkSession();
@@ -33,6 +36,14 @@ const App: React.FC = () => {
     clearToken();
     setCurrentUser(null);
   };
+
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">

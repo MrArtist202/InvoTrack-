@@ -18,9 +18,8 @@ export const STRIPE_CONFIG = {
   isConfigured: true,
 
   // Your backend API URL (for creating checkout sessions)
-  // Your backend API URL (for creating checkout sessions)
   // In production (Vercel), we can use the relative path or specific env var
-  apiUrl: import.meta.env.VITE_API_URL || '',
+  apiUrl: import.meta.env.VITE_API_URL || '/api',
 };
 
 // ============================================
@@ -40,6 +39,14 @@ export const COMPANY_INFO = {
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
+
+export const formatCurrency = (amount: number, currency: string = 'AUD'): string => {
+  const code = currency.toUpperCase();
+  const locale = code === 'AUD' ? 'en-AU' : 'en-US';
+
+  // Explicitly return CURRENCY CODE + Value to be safe and clear as requested
+  return `${code} ${amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
 // Generate a unique reference ID for each invoice (timestamp-based for guaranteed uniqueness)
 export const generateReferenceId = (): string => {
@@ -67,16 +74,19 @@ export const generatePaymentLink = async (
   referenceId: string,
   amount: number,
   description: string,
-  customerEmail: string
+  customerEmail: string,
+  currency: string = 'AUD'
 ): Promise<string> => {
   if (STRIPE_CONFIG.isConfigured && STRIPE_CONFIG.apiUrl) {
     try {
       // Call your backend to create a Stripe Checkout Session
-      const response = await fetch(`${STRIPE_CONFIG.apiUrl}/api/create-checkout-session`, {
+      // Remove hardcoded /api since apiUrl already includes it (or defaults to /api)
+      const response = await fetch(`${STRIPE_CONFIG.apiUrl}/create-checkout-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           amount,
+          currency,
           description,
           referenceId,
           customerEmail,
@@ -84,7 +94,8 @@ export const generatePaymentLink = async (
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create checkout session');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.details || 'Failed to create checkout session');
       }
 
       const data = await response.json();
@@ -113,7 +124,7 @@ export const generateQRCodeUrl = (paymentLink: string, size: number = 200): stri
 export const checkPaymentStatus = async (referenceId: string): Promise<'pending' | 'paid' | 'failed'> => {
   if (STRIPE_CONFIG.isConfigured && STRIPE_CONFIG.apiUrl) {
     try {
-      const response = await fetch(`${STRIPE_CONFIG.apiUrl}/api/check-payment/${referenceId}`);
+      const response = await fetch(`${STRIPE_CONFIG.apiUrl}/check-payment/${referenceId}`);
       const data = await response.json();
       return data.status;
     } catch (error) {

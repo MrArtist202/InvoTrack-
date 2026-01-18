@@ -25,6 +25,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ user, profiles, onClose, onSu
     toName: '',
     toEmail: '',
     amount: '',
+    currency: 'AUD',
   });
 
   useEffect(() => {
@@ -60,6 +61,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ user, profiles, onClose, onSu
         subject: selectedCategory,
         description,
         amount,
+        currency: formData.currency,
         stripeLink,
         qrCodeUrl,
       });
@@ -146,6 +148,35 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ user, profiles, onClose, onSu
             </div>
           </div>
 
+          {/* Currency Selection */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Currency</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:border-indigo-500 transition-all has-[:checked]:bg-indigo-50 has-[:checked]:border-indigo-500 has-[:checked]:text-indigo-700">
+                <input
+                  type="radio"
+                  name="currency"
+                  value="AUD"
+                  checked={formData.currency === 'AUD'}
+                  onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                  className="hidden"
+                />
+                <span className="font-bold text-sm">AUD</span>
+              </label>
+              <label className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:border-indigo-500 transition-all has-[:checked]:bg-indigo-50 has-[:checked]:border-indigo-500 has-[:checked]:text-indigo-700">
+                <input
+                  type="radio"
+                  name="currency"
+                  value="USD"
+                  checked={formData.currency === 'USD'}
+                  onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                  className="hidden"
+                />
+                <span className="font-bold text-sm">USD</span>
+              </label>
+            </div>
+          </div>
+
           {/* Service */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Service *</label>
@@ -172,14 +203,14 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({ user, profiles, onClose, onSu
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount *</label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold">$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-xs">{formData.currency}</span>
               <input
                 required
                 type="number"
                 step="0.01"
                 min="0.01"
                 placeholder="0.00"
-                className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-8 pr-3 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-lg font-bold"
+                className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-12 pr-3 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all text-lg font-bold"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
               />

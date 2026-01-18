@@ -37,9 +37,11 @@ export interface Invoice {
   subject: string;
   description?: string; // Auto-generated from service category
   amount: number;
+  currency?: string;
   created_at: string;
   status: InvoiceStatus;
   memberId: string;
+  member_name?: string; // For admin display
   profileId?: string; // Link to profile
   stripeLink: string;
   qrCodeUrl: string;

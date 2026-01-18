@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Invoice, InvoiceStatus, Profile } from '../types';
 import { invoicesAPI, profilesAPI } from '../api';
-import { STRIPE_CONFIG, generatePaymentLink } from '../config';
+import { STRIPE_CONFIG, generatePaymentLink, formatCurrency } from '../config';
 import { Plus, Search, Mail, Download, Check, ExternalLink, ReceiptText, Copy, Trash2, AlertCircle, Filter, ChevronDown, X } from 'lucide-react';
 import InvoiceForm from './InvoiceForm';
 import InvoiceTemplate from './InvoiceTemplate';
@@ -90,13 +90,14 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
         subject: data.subject || '',
         description: data.description || '',
         amount: data.amount || 0,
+        currency: data.currency,
         stripe_link: data.stripeLink,
         qr_code_url: data.qrCodeUrl,
       });
 
       // Generate Stripe link if configured
       if (STRIPE_CONFIG.isConfigured && newInv) {
-        await generatePaymentLink(referenceId, newInv.amount, newInv.description || 'Invoice', newInv.toEmail || '');
+        await generatePaymentLink(referenceId, newInv.amount, newInv.description || 'Invoice', newInv.toEmail || '', newInv.currency);
         // The backend `create-checkout-session` updates the invoice with the link
       }
 
@@ -146,14 +147,14 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
   };
 
   const handlePayment = async (inv: Invoice) => {
-    // If link looks valid (simple check), just open it
-    if (inv.stripeLink && inv.stripeLink.includes('checkout.stripe.com')) {
-      window.open(inv.stripeLink, '_blank');
-      return;
-    }
+    // Always generate a new link to ensure the session hasn't expired (Stripe sessions expire in 24h)
+    // if (inv.stripeLink && inv.stripeLink.includes('checkout.stripe.com')) {
+    //   window.open(inv.stripeLink, '_blank');
+    //   return;
+    // }
 
     try {
-      const url = await generatePaymentLink(inv.referenceId, inv.amount, inv.description || 'Invoice', inv.toEmail || '');
+      const url = await generatePaymentLink(inv.referenceId, inv.amount, inv.description || 'Invoice', inv.toEmail || '', inv.currency);
 
       // Update local state to reflect new link immediately
       const updatedInv = { ...inv, stripeLink: url };
@@ -287,26 +288,28 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
     }
   };
 
-  const filteredInvoices = invoices.filter(inv => {
-    // Search filter
-    const matchesSearch = searchTerm === '' ||
-      inv.toName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.referenceId.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredInvoices = React.useMemo(() => {
+    return invoices.filter(inv => {
+      // Search filter
+      const matchesSearch = searchTerm === '' ||
+        inv.toName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        inv.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        inv.referenceId.toLowerCase().includes(searchTerm.toLowerCase());
 
-    // Profile filter
-    const matchesProfile = filterProfile === '' || inv.profileId === filterProfile;
+      // Profile filter
+      const matchesProfile = filterProfile === '' || inv.profileId === filterProfile;
 
-    // Status filter
-    const matchesStatus = filterStatus === '' || inv.status === filterStatus;
+      // Status filter
+      const matchesStatus = filterStatus === '' || inv.status === filterStatus;
 
-    // Date filter
-    const invDate = new Date(inv.created_at).setHours(0, 0, 0, 0);
-    const matchesDateFrom = filterDateFrom === '' || invDate >= new Date(filterDateFrom).setHours(0, 0, 0, 0);
-    const matchesDateTo = filterDateTo === '' || invDate <= new Date(filterDateTo).setHours(0, 0, 0, 0);
+      // Date filter
+      const invDate = new Date(inv.created_at).setHours(0, 0, 0, 0);
+      const matchesDateFrom = filterDateFrom === '' || invDate >= new Date(filterDateFrom).setHours(0, 0, 0, 0);
+      const matchesDateTo = filterDateTo === '' || invDate <= new Date(filterDateTo).setHours(0, 0, 0, 0);
 
-    return matchesSearch && matchesProfile && matchesStatus && matchesDateFrom && matchesDateTo;
-  });
+      return matchesSearch && matchesProfile && matchesStatus && matchesDateFrom && matchesDateTo;
+    });
+  }, [invoices, searchTerm, filterProfile, filterStatus, filterDateFrom, filterDateTo]);
 
   const clearFilters = () => {
     setFilterProfile('');
@@ -462,7 +465,7 @@ const Invoices: React.FC<InvoicesProps> = ({ user, memberScopeId }) => {
                         <p className="text-xs text-slate-400">{inv.toEmail}</p>
                       </td>
                       <td className="px-6 py-4 text-slate-600 max-w-[200px] truncate">{inv.subject}</td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-800">${inv.amount.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(inv.amount, inv.currency)}</td>
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${inv.status === 'paid'
                           ? 'bg-emerald-100 text-emerald-700'

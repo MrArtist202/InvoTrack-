@@ -5,11 +5,22 @@ import jwt from 'jsonwebtoken';
 import pool from './db.js';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
-import { fileURLToPath } from 'url';
+
 
 dotenv.config();
 console.log('Environment loaded');
 console.log('Stripe Key exists:', !!process.env.STRIPE_SECRET_KEY);
+
+// Auto-migration for currency support
+const runMigrations = async () => {
+    try {
+        await pool.query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'AUD'`);
+        console.log('Schema updated: currency column added');
+    } catch (err) {
+        console.error('Migration error:', err.message);
+    }
+};
+runMigrations();
 
 const app = express();
 app.use(cors());
@@ -255,7 +266,8 @@ app.get('/api/invoices', authenticate, async (req, res) => {
 
         if (req.user.role === 'ADMIN') {
             // Admin sees invoices from their members
-            query = `SELECT i.*, p.name as profile_name, p.avatar as profile_avatar 
+            // Added u.name as member_name to identify which member created the invoice
+            query = `SELECT i.*, p.name as profile_name, p.avatar as profile_avatar, u.name as member_name
                FROM invoices i 
                LEFT JOIN profiles p ON i.profile_id = p.id
                LEFT JOIN users u ON i.member_id = u.id
@@ -299,12 +311,12 @@ app.get('/api/invoices/:id', async (req, res) => {
 // Create invoice
 app.post('/api/invoices', authenticate, async (req, res) => {
     try {
-        const { reference_id, invoice_number, profile_id, from_name, to_name, to_email, subject, description, amount, stripe_link, qr_code_url } = req.body;
+        const { reference_id, invoice_number, profile_id, from_name, to_name, to_email, subject, description, amount, currency, stripe_link, qr_code_url } = req.body;
 
         const result = await pool.query(
-            `INSERT INTO invoices (reference_id, invoice_number, member_id, profile_id, from_name, to_name, to_email, subject, description, amount, stripe_link, qr_code_url) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-            [reference_id, invoice_number, req.user.id, profile_id, from_name, to_name, to_email, subject, description, amount, stripe_link, qr_code_url]
+            `INSERT INTO invoices (reference_id, invoice_number, member_id, profile_id, from_name, to_name, to_email, subject, description, amount, currency, stripe_link, qr_code_url) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+            [reference_id, invoice_number, req.user.id, profile_id, from_name, to_name, to_email, subject, description, amount, currency || 'AUD', stripe_link, qr_code_url]
         );
         res.json(result.rows[0]);
     } catch (err) {
@@ -351,8 +363,10 @@ app.get('/api/stats', authenticate, async (req, res) => {
             params = [req.user.id];
         }
 
+        // Aggregate by currency
         const statsQuery = `
       SELECT 
+        currency,
         COUNT(*) as total_invoices,
         COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
         COUNT(*) FILTER (WHERE status = 'paid') as paid_count,
@@ -360,10 +374,37 @@ app.get('/api/stats', authenticate, async (req, res) => {
         COALESCE(SUM(amount) FILTER (WHERE status = 'pending'), 0) as pending_amount,
         COALESCE(SUM(amount), 0) as total_amount
       FROM invoices i ${memberCondition}
+      GROUP BY currency
     `;
 
         const result = await pool.query(statsQuery, params);
-        res.json(result.rows[0]);
+
+        // Transform into an easier shapre for frontend { AUD: {...}, USD: {...} }
+        const stats = {};
+        // Initialize defaults
+        ['AUD', 'USD'].forEach(curr => {
+            stats[curr] = {
+                total_invoices: 0,
+                pending_count: 0,
+                paid_count: 0,
+                total_received: 0,
+                pending_amount: 0,
+                total_amount: 0
+            };
+        });
+
+        result.rows.forEach(row => {
+            stats[row.currency] = {
+                total_invoices: parseInt(row.total_invoices),
+                pending_count: parseInt(row.pending_count),
+                paid_count: parseInt(row.paid_count),
+                total_received: parseFloat(row.total_received),
+                pending_amount: parseFloat(row.pending_amount),
+                total_amount: parseFloat(row.total_amount)
+            };
+        });
+
+        res.json(stats);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -435,13 +476,23 @@ app.put('/api/notifications/read-all', authenticate, async (req, res) => {
 
 // ==================== STRIPE ROUTES ====================
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// Initialize Stripe conditionally
+let stripe;
+if (process.env.STRIPE_SECRET_KEY) {
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+} else {
+    console.warn('WARNING: STRIPE_SECRET_KEY is missing. Payment features will be disabled.');
+}
 
 // Create checkout session
 app.post('/api/create-checkout-session', async (req, res) => {
     try {
-        const { amount, description, referenceId, customerEmail } = req.body;
-        console.log('Creating checkout session for:', { amount, type: typeof amount, referenceId });
+        if (!stripe) {
+            return res.status(503).json({ error: 'Payment system is not configured (Stripe key missing)' });
+        }
+
+        const { amount, currency = 'aud', description, referenceId, customerEmail } = req.body;
+        console.log('Creating checkout session for:', { amount, currency, referenceId });
 
         const parsedAmount = parseFloat(amount);
         if (isNaN(parsedAmount) || parsedAmount < 0.50) {
@@ -452,7 +503,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
             payment_method_types: ['card'],
             line_items: [{
                 price_data: {
-                    currency: 'usd',
+                    currency: currency.toLowerCase(),
                     product_data: {
                         name: `Invoice ${referenceId}`,
                         description: description || 'Invoice Payment',
@@ -479,6 +530,9 @@ app.post('/api/create-checkout-session', async (req, res) => {
 // Verify payment session
 app.post('/api/payment/verify-session', async (req, res) => {
     try {
+        if (!stripe) {
+            return res.status(503).json({ error: 'Payment system is not configured (Stripe key missing)' });
+        }
         const { sessionId } = req.body;
         const session = await stripe.checkout.sessions.retrieve(sessionId);
 
@@ -535,7 +589,7 @@ app.get('/api/health', (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 // Only start server if run directly (local dev), not when imported by Vercel
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (!process.env.VERCEL) {
     app.listen(PORT, () => {
         console.log(`✓ Server running on port ${PORT}`);
     });

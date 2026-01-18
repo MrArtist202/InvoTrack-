@@ -3,100 +3,100 @@
 // This module handles real Stripe payment link generation
 
 export interface StripeConfig {
-    publishableKey: string;
-    secretKey: string;
-    webhookSecret: string;
-    isConfigured: boolean;
+  publishableKey: string;
+  secretKey: string;
+  webhookSecret: string;
+  isConfigured: boolean;
 }
 
 // Default configuration - REPLACE WITH YOUR KEYS
 export const stripeConfig: StripeConfig = {
-    publishableKey: '', // Your Stripe publishable key (pk_live_... or pk_test_...)
-    secretKey: '',      // Your Stripe secret key (sk_live_... or sk_test_...)  
-    webhookSecret: '',  // Your webhook signing secret (whsec_...)
-    isConfigured: false,
+  publishableKey: '', // Your Stripe publishable key (pk_live_... or pk_test_...)
+  secretKey: '',      // Your Stripe secret key (sk_live_... or sk_test_...)  
+  webhookSecret: '',  // Your webhook signing secret (whsec_...)
+  isConfigured: false,
 };
 
 // Check if Stripe is configured
 export const isStripeConfigured = (): boolean => {
-    return stripeConfig.publishableKey !== '' && stripeConfig.secretKey !== '';
+  return stripeConfig.publishableKey !== '' && stripeConfig.secretKey !== '';
 };
 
 // Generate a Stripe Payment Link
 // Note: In production, this should be called from a backend server
 export const createPaymentLink = async (
-    amount: number,
-    currency: string = 'usd',
-    description: string,
-    referenceId: string,
-    customerEmail?: string
+  amount: number,
+  currency: string = 'aud',
+  description: string,
+  referenceId: string,
+  customerEmail?: string
 ): Promise<string> => {
-    if (!isStripeConfigured()) {
-        // Return demo link if not configured
-        console.warn('Stripe not configured. Using demo payment link.');
-        return `https://buy.stripe.com/demo/${referenceId}`;
-    }
+  if (!isStripeConfigured()) {
+    // Return demo link if not configured
+    console.warn('Stripe not configured. Using demo payment link.');
+    return `https://buy.stripe.com/demo/${referenceId}`;
+  }
 
-    // In a real implementation, this would call your backend API
-    // which would use the Stripe secret key to create a checkout session
-    // 
-    // Example backend endpoint:
-    // POST /api/create-checkout-session
-    // Body: { amount, currency, description, referenceId, customerEmail }
-    //
-    // The backend would then use:
-    // const session = await stripe.checkout.sessions.create({
-    //   payment_method_types: ['card'],
-    //   line_items: [{
-    //     price_data: {
-    //       currency,
-    //       product_data: { name: description },
-    //       unit_amount: Math.round(amount * 100),
-    //     },
-    //     quantity: 1,
-    //   }],
-    //   mode: 'payment',
-    //   success_url: `${YOUR_DOMAIN}/success?ref=${referenceId}`,
-    //   cancel_url: `${YOUR_DOMAIN}/cancel?ref=${referenceId}`,
-    //   customer_email: customerEmail,
-    //   metadata: { referenceId },
-    // });
-    // return session.url;
+  // In a real implementation, this would call your backend API
+  // which would use the Stripe secret key to create a checkout session
+  // 
+  // Example backend endpoint:
+  // POST /api/create-checkout-session
+  // Body: { amount, currency, description, referenceId, customerEmail }
+  //
+  // The backend would then use:
+  // const session = await stripe.checkout.sessions.create({
+  //   payment_method_types: ['card'],
+  //   line_items: [{
+  //     price_data: {
+  //       currency,
+  //       product_data: { name: description },
+  //       unit_amount: Math.round(amount * 100),
+  //     },
+  //     quantity: 1,
+  //   }],
+  //   mode: 'payment',
+  //   success_url: `${YOUR_DOMAIN}/success?ref=${referenceId}`,
+  //   cancel_url: `${YOUR_DOMAIN}/cancel?ref=${referenceId}`,
+  //   customer_email: customerEmail,
+  //   metadata: { referenceId },
+  // });
+  // return session.url;
 
-    try {
-        // For demo purposes, we'll create a mock checkout URL
-        // In production, replace this with your actual API call
-        const mockCheckoutUrl = `https://checkout.stripe.com/pay/cs_test_${referenceId}`;
-        return mockCheckoutUrl;
-    } catch (error) {
-        console.error('Error creating payment link:', error);
-        throw error;
-    }
+  try {
+    // For demo purposes, we'll create a mock checkout URL
+    // In production, replace this with your actual API call
+    const mockCheckoutUrl = `https://checkout.stripe.com/pay/cs_test_${referenceId}`;
+    return mockCheckoutUrl;
+  } catch (error) {
+    console.error('Error creating payment link:', error);
+    throw error;
+  }
 };
 
 // Verify webhook signature (backend only)
 export const verifyWebhookSignature = (
-    payload: string,
-    signature: string,
-    secret: string
+  payload: string,
+  signature: string,
+  secret: string
 ): boolean => {
-    // This should only be used on the backend
-    // const event = stripe.webhooks.constructEvent(payload, signature, secret);
-    console.warn('Webhook verification should be done on the backend');
-    return false;
+  // This should only be used on the backend
+  // const event = stripe.webhooks.constructEvent(payload, signature, secret);
+  console.warn('Webhook verification should be done on the backend');
+  return false;
 };
 
 // Handle successful payment (called by webhook)
 export const handlePaymentSuccess = (referenceId: string): void => {
-    const invoices = JSON.parse(localStorage.getItem('invotrack_invoices') || '[]');
-    const index = invoices.findIndex((inv: any) => inv.referenceId === referenceId);
+  const invoices = JSON.parse(localStorage.getItem('invotrack_invoices') || '[]');
+  const index = invoices.findIndex((inv: any) => inv.referenceId === referenceId);
 
-    if (index !== -1) {
-        invoices[index].status = 'paid';
-        invoices[index].paidAt = new Date().toISOString();
-        localStorage.setItem('invotrack_invoices', JSON.stringify(invoices));
-        console.log(`Invoice ${referenceId} marked as paid`);
-    }
+  if (index !== -1) {
+    invoices[index].status = 'paid';
+    invoices[index].paidAt = new Date().toISOString();
+    localStorage.setItem('invotrack_invoices', JSON.stringify(invoices));
+    console.log(`Invoice ${referenceId} marked as paid`);
+  }
 };
 
 // Instructions for setting up Stripe
@@ -129,7 +129,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
     payment_method_types: ['card'],
     line_items: [{
       price_data: {
-        currency: 'usd',
+        currency: 'aud',
         product_data: { name: description },
         unit_amount: Math.round(amount * 100),
       },
