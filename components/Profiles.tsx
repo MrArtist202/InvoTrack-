@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, Profile } from '../types';
 import { profilesAPI } from '../api';
-import { Plus, Edit2, Trash2, User as UserIcon, MapPin, Phone, Mail, Star, X, Camera } from 'lucide-react';
+import { Plus, Edit2, Trash2, User as UserIcon, MapPin, Phone, Mail, Star, X, Camera, Loader2 } from 'lucide-react';
 
 interface ProfilesProps {
     user: User;
@@ -10,6 +10,7 @@ interface ProfilesProps {
 
 const Profiles: React.FC<ProfilesProps> = ({ user }) => {
     const [profiles, setProfiles] = useState<Profile[]>([]);
+    const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -29,10 +30,13 @@ const Profiles: React.FC<ProfilesProps> = ({ user }) => {
 
     const loadProfiles = async () => {
         try {
+            setLoading(true);
             const all = await profilesAPI.getAll();
             setProfiles(all);
         } catch (error) {
             console.error('Failed to load profiles:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -139,7 +143,12 @@ const Profiles: React.FC<ProfilesProps> = ({ user }) => {
             </div>
 
             {/* Profiles Grid */}
-            {profiles.length === 0 ? (
+            {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <Loader2 size={40} className="animate-spin mb-4 text-indigo-500" />
+                    <p className="font-medium">Loading profiles...</p>
+                </div>
+            ) : profiles.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
                     <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <UserIcon className="text-slate-300" size={32} />

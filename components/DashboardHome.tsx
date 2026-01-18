@@ -3,7 +3,7 @@ import { User, Invoice } from '../types';
 import { invoicesAPI, membersAPI } from '../api';
 import { formatCurrency } from '../config';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { FileText, Clock, CheckCircle, TrendingUp, ArrowUpRight, Wallet, Users, Plus, DollarSign } from 'lucide-react';
+import { FileText, Clock, CheckCircle, TrendingUp, ArrowUpRight, Wallet, Users, Plus, DollarSign, Loader2 } from 'lucide-react';
 
 interface DashboardHomeProps {
   user: User;
@@ -13,6 +13,7 @@ interface DashboardHomeProps {
 const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [memberCount, setMemberCount] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>({
     AUD: { totalCount: 0, pendingCount: 0, paidCount: 0, totalRevenue: 0, pendingRevenue: 0, totalAmount: 0 },
     USD: { totalCount: 0, pendingCount: 0, paidCount: 0, totalRevenue: 0, pendingRevenue: 0, totalAmount: 0 },
@@ -22,6 +23,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
   useEffect(() => {
     const loadData = async () => {
       try {
+        setLoading(true);
         const allInvoices = await invoicesAPI.getAll();
         setInvoices(allInvoices);
 
@@ -47,7 +49,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
           },
           USD: {
             totalCount: allInvoices.filter(i => i.currency === 'USD').length,
-            pendingCount: allInvoices.filter(i => i.currency === 'USD' && i.status === 'pending').length,
+            pendingCount: allInvoices.filter(i => i.currency === 'USD' && i.status === 'paid').length,
             paidCount: allInvoices.filter(i => i.currency === 'USD' && i.status === 'paid').length,
             totalRevenue: allInvoices.filter(i => i.currency === 'USD' && i.status === 'paid').reduce((acc, curr) => acc + curr.amount, 0),
             pendingRevenue: allInvoices.filter(i => i.currency === 'USD' && i.status === 'pending').reduce((acc, curr) => acc + curr.amount, 0),
@@ -62,6 +64,8 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
         }
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
+      } finally {
+        setLoading(false);
       }
     };
     loadData();
@@ -105,6 +109,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
           trend={`${currentStats.paidCount} paid`}
           trendUp={true}
           bg="bg-slate-900 text-white"
+          loading={loading}
         />
         <StatCard
           icon={<Clock className="text-amber-600" size={22} />}
@@ -112,6 +117,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
           value={formatCurrency(currentStats.pendingRevenue, currencyView)}
           trend={`${currentStats.pendingCount} invoices`}
           bg="bg-white border border-slate-200"
+          loading={loading}
         />
         <StatCard
           icon={<FileText className="text-indigo-600" size={22} />}
@@ -119,6 +125,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
           value={currentStats.totalCount.toString()}
           trend="All time"
           bg="bg-white border border-slate-200"
+          loading={loading}
         />
         {user.role === 'ADMIN' ? (
           <StatCard
@@ -128,6 +135,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
             trend="Active"
             trendUp={true}
             bg="bg-white border border-slate-200"
+            loading={loading}
           />
         ) : (
           <StatCard
@@ -137,6 +145,7 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
             trend="Paid invoices"
             trendUp={true}
             bg="bg-white border border-slate-200"
+            loading={loading}
           />
         )}
       </div>
@@ -263,24 +272,32 @@ const DashboardHome: React.FC<DashboardHomeProps> = ({ user, onTabChange }) => {
   );
 };
 
-const StatCard = ({ icon, label, value, trend, trendUp, bg }: any) => (
-  <div className={`${bg || 'bg-white border border-slate-200'} p-5 rounded-2xl flex flex-col justify-between h-32`}>
-    <div className="flex items-center justify-between">
-      <div className={`p-2.5 rounded-xl ${bg?.includes('bg-white') ? 'bg-slate-100' : 'bg-white/20'}`}>
-        {icon}
+const StatCard = ({ icon, label, value, trend, trendUp, bg, loading }: any) => (
+  <div className={`${bg || 'bg-white border border-slate-200'} p-5 rounded-2xl flex flex-col justify-between h-32 relative overflow-hidden`}>
+    {loading ? (
+      <div className="absolute inset-0 flex items-center justify-center bg-white/10 backdrop-blur-[2px]">
+        <Loader2 className={`animate-spin ${bg?.includes('slate-900') ? 'text-white' : 'text-indigo-600'}`} size={24} />
       </div>
-      {trend && (
-        <div className={`flex items-center text-xs font-semibold px-2 py-1 rounded-lg ${trendUp ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500 bg-slate-100'
-          }`}>
-          {trendUp && <ArrowUpRight size={12} className="mr-0.5" />}
-          {trend}
+    ) : (
+      <>
+        <div className="flex items-center justify-between">
+          <div className={`p-2.5 rounded-xl ${bg?.includes('bg-white') ? 'bg-slate-100' : 'bg-white/20'}`}>
+            {icon}
+          </div>
+          {trend && (
+            <div className={`flex items-center text-xs font-semibold px-2 py-1 rounded-lg ${trendUp ? 'text-emerald-600 bg-emerald-50' : 'text-slate-500 bg-slate-100'
+              }`}>
+              {trendUp && <ArrowUpRight size={12} className="mr-0.5" />}
+              {trend}
+            </div>
+          )}
         </div>
-      )}
-    </div>
-    <div>
-      <p className={`text-xs font-semibold mb-0.5 ${bg?.includes('slate-900') ? 'text-slate-400' : 'text-slate-500'}`}>{label}</p>
-      <p className={`text-2xl font-bold ${bg?.includes('slate-900') ? 'text-white' : 'text-slate-900'}`}>{value}</p>
-    </div>
+        <div>
+          <p className={`text-xs font-semibold mb-0.5 ${bg?.includes('slate-900') ? 'text-slate-400' : 'text-slate-500'}`}>{label}</p>
+          <p className={`text-2xl font-bold ${bg?.includes('slate-900') ? 'text-white' : 'text-slate-900'}`}>{value}</p>
+        </div>
+      </>
+    )}
   </div>
 );
 
