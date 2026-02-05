@@ -609,19 +609,53 @@ app.get('/api/check-payment/:referenceId', async (req, res) => {
     }
 });
 
-// Stripe webhook
+// Stripe webhook (with signature verification for security)
 app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
     try {
-        const event = req.body;
+        let event;
+
+        if (webhookSecret && stripe) {
+            // Verify the signature if we have a webhook secret
+            const sig = req.headers['stripe-signature'];
+            try {
+                event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+            } catch (err) {
+                console.error('Webhook signature verification failed:', err.message);
+                return res.status(400).json({ error: `Webhook signature verification failed: ${err.message}` });
+            }
+        } else {
+            // Fallback for development/testing without signature verification
+            event = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+            console.warn('WARNING: Processing webhook without signature verification');
+        }
+
+        console.log('Received Stripe webhook event:', event.type);
+
         if (event.type === 'checkout.session.completed') {
-            const referenceId = event.data.object.metadata?.referenceId;
+            const session = event.data.object;
+            const referenceId = session.metadata?.referenceId;
+
             if (referenceId) {
-                await pool.query("UPDATE invoices SET status = 'paid', updated_at = NOW() WHERE reference_id = $1", [referenceId]);
-                console.log(`✓ Invoice ${referenceId} marked as paid`);
+                const result = await pool.query(
+                    "UPDATE invoices SET status = 'paid', updated_at = NOW() WHERE reference_id = $1 RETURNING *",
+                    [referenceId]
+                );
+
+                if (result.rows.length > 0) {
+                    console.log(`✓ Invoice ${referenceId} marked as paid via webhook`);
+                } else {
+                    console.warn(`Invoice with referenceId ${referenceId} not found`);
+                }
+            } else {
+                console.warn('Webhook event missing referenceId in metadata');
             }
         }
+
         res.json({ received: true });
     } catch (err) {
+        console.error('Webhook processing error:', err);
         res.status(400).json({ error: err.message });
     }
 });
