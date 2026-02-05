@@ -29,6 +29,8 @@ export const SERVICE_CATEGORIES = [
   { label: 'Photography', description: 'Professional photography services including event coverage, corporate headshots, product photography, lifestyle shoots, and post-processing with high-resolution deliverables and commercial usage rights.' },
   { label: 'Brand Strategy', description: 'Comprehensive brand strategy and positioning services including market research, competitor analysis, brand messaging, visual identity development, and go-to-market strategy for business growth.' },
   { label: 'Email Marketing', description: 'Email marketing services including campaign design, automation workflows, A/B testing, list segmentation, deliverability optimization, and detailed analytics reporting to maximize engagement and conversions.' },
+  { label: 'PassNaati Dialogues', description: 'Premium subscription to PassNaati Dialogues providing access to comprehensive NAATI CCL exam preparation dialogue practice materials, real-life scenario simulations, and expert-curated audio content to boost your interpreting skills and exam confidence.' },
+  { label: 'PassNaati Vocabs Pack', description: 'Exclusive PassNaati Vocabs Pack subscription featuring an extensive vocabulary database tailored for NAATI CCL exam success, including specialized terminology, flashcards, pronunciation guides, and practice exercises across all major language pairs.' },
 ];
 
 export const NAV_ITEMS = [
